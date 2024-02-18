@@ -27,7 +27,10 @@ Add Stats for the user in Dashboard
 Work on UI
 ===================
 
+git add .
+git commit -m "fixed issues with answer showing and voice recognition"
+git push origin master
 
-valet start
-valet link
-npm run dev
+======================
+
+

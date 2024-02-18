@@ -21,12 +21,16 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
 
     const moveToNextQuestion = useCallback(() => {
         setSpeechAnswer('');
+        setShowAnswer(false); // Reset showAnswer state
+        setError(''); // Reset error state
+        setUserAnswer(''); // Clear the user answer input field
         if (currentQuestionIndex + 1 < questions.length) {
             setCurrentQuestionIndex(currentQuestionIndex + 1);
         } else {
             setQuizCompleted(true);
         }
     }, [currentQuestionIndex, questions.length]);
+
 
     const handleIKnowThis = useCallback((questionId) => {
         axios.post('/mark-question-known', {
@@ -56,26 +60,26 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
             isCorrect = currentQuestion.answer.toLowerCase() === userAnswer.toLowerCase();
         }
 
-        axios.post('/submit-answer', {
-            userId: user.id,
-            questionId: currentQuestion.id,
-            courseId: course.id,
-            isCorrect: isCorrect,
-        })
-        .then(response => {
-            // Optionally handle the response, e.g., updating UI based on spaced repetition data
-            if (isCorrect) {
+        if (isCorrect) {
+            setError(''); // Clear the error message immediately upon correct answer
+            axios.post('/submit-answer', {
+                userId: user.id,
+                questionId: currentQuestion.id,
+                courseId: course.id,
+                isCorrect: isCorrect,
+            })
+            .then(response => {
                 setCorrectAnswersCount(prev => prev + 1);
-                moveToNextQuestion();
-            } else {
-                setError("Incorrect answer. Try again.");
-            }
-            setSpacedRepetitionMetrics(response.data.data);
-        })
-        .catch(error => {
-            console.error('Error submitting answer:', error);
-            setError("Error submitting answer.");
-        });
+                setSpacedRepetitionMetrics(response.data.data);
+                moveToNextQuestion(); // Moved inside then() to ensure order of operations
+            })
+            .catch(error => {
+                console.error('Error submitting answer:', error);
+                setError("Error submitting answer.");
+            });
+        } else {
+            setError("Incorrect answer. Try again.");
+        }
     }, [currentQuestionIndex, questions, userAnswer, user.id, course.id, moveToNextQuestion]);
 
 
@@ -210,7 +214,7 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
     const handlePreviousQuestion = () => {
         setError('');
         setUserAnswer('');
-        setShowAnswer(false);
+        setShowAnswer(false); // Reset showAnswer state
         if (currentQuestionIndex > 0) {
             setCurrentQuestionIndex(currentQuestionIndex - 1);
         }
