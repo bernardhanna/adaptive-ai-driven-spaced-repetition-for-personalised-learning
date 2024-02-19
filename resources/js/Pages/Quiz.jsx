@@ -18,19 +18,51 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
     const recognitionRef = useRef(null);
     const currentQuestion = questions[currentQuestionIndex];
     const [spacedRepetitionMetrics, setSpacedRepetitionMetrics] = useState({});
+    const [seconds, setSeconds] = useState(0);
+    const [isActive, setIsActive] = useState(true);
+    const [milliseconds, setMilliseconds] = useState(0);
+
+    useEffect(() => {
+        let interval = null;
+        if (isActive) {
+            interval = setInterval(() => {
+                setMilliseconds(prevMilliseconds => prevMilliseconds + 10);
+            }, 10);
+        } else {
+            clearInterval(interval);
+        }
+        return () => clearInterval(interval);
+    }, [isActive]);
+
+    const formatTime = (milliseconds) => {
+        let remainingMilliseconds = milliseconds;
+        const hours = Math.floor(remainingMilliseconds / 3600000);
+        remainingMilliseconds = remainingMilliseconds % 3600000;
+        const minutes = Math.floor(remainingMilliseconds / 60000);
+        remainingMilliseconds = remainingMilliseconds % 60000;
+        const seconds = Math.floor(remainingMilliseconds / 1000);
+        // const ms = remainingMilliseconds % 1000; // Calculation remains but not used in return
+
+           return `${String(hours).padStart(2, '0')}hr:${String(minutes).padStart(2, '0')}min:${String(seconds).padStart(2, '0')}sec`;
+
+    };
+
+
 
     const moveToNextQuestion = useCallback(() => {
         setSpeechAnswer('');
-        setShowAnswer(false); // Reset showAnswer state
-        setError(''); // Reset error state
-        setUserAnswer(''); // Clear the user answer input field
+        setShowAnswer(false);
+        setError('');
+        setUserAnswer('');
+        setMilliseconds(0); // Reset the timer to 0 milliseconds
+        setIsActive(true); // Reactivate the timer for the new question
         if (currentQuestionIndex + 1 < questions.length) {
             setCurrentQuestionIndex(currentQuestionIndex + 1);
         } else {
             setQuizCompleted(true);
+            setIsActive(false); // Stop the timer when the quiz is completed
         }
     }, [currentQuestionIndex, questions.length]);
-
 
     const handleIKnowThis = useCallback((questionId) => {
         axios.post('/mark-question-known', {
@@ -67,6 +99,7 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
                 questionId: currentQuestion.id,
                 courseId: course.id,
                 isCorrect: isCorrect,
+                timeTaken: milliseconds,
             })
             .then(response => {
                 setCorrectAnswersCount(prev => prev + 1);
@@ -91,8 +124,10 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
             recognitionRef.current.interimResults = true;
             recognitionRef.current.onresult = (event) => {
                 const lastResult = event.results[event.results.length - 1];
+                 console.log(lastResult); // Debugging line to see the result object
                 if (lastResult.isFinal) {
                     const transcript = lastResult[0].transcript.trim().toLowerCase();
+                    console.log(transcript);
                     setSpeechAnswer(transcript);
                     const currentQuestion = questions[currentQuestionIndex];
                     if (transcript === currentQuestion.answer.toLowerCase()) {
@@ -143,20 +178,20 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
                 );
             case 'speech':
                 return (
-                    <button type="button" onClick={toggleListening} className="px-4 py-2 ml-4 font-bold text-white bg-purple-500 rounded hover:bg-purple-700 focus:outline-none focus:shadow-outline">
-                        {isListening ? 'Stop Listening' : 'Start Listening'}
+                    <button type="button" onClick={toggleListening} className={`px-4 py-2 ml-4 font-bold text-white rounded focus:outline-none focus:shadow-outline ${isListening ? 'bg-red-500 hover:bg-red-700' : 'bg-purple-500 hover:bg-purple-700'}`}>
+                        {isListening ? 'Listening... (Click to Stop)' : 'Start Listening'}
                     </button>
                 );
             default:
                 return <input type="text" />;
         }
     };
-
     const fuzzyMatch = useCallback((input, answers) => {
-        const fuse = new Fuse(answers, { includeScore: true, threshold: 0.4 });
+        const fuse = new Fuse(answers, { includeScore: true, threshold: 0.4 }); // Adjust threshold as needed
         const result = fuse.search(input);
-        return result.length > 0 && result[0].score <= 0.4;
+        return result.length > 0; // True if there's at least one match
     }, []);
+
 
     const handleSpeechResult = useCallback((event) => {
         const lastResultIndex = event.results.length - 1;
@@ -165,13 +200,14 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
 
         // Assuming 'currentQuestion.answer' holds the correct answer(s) in a manner that can be directly compared.
         const answersToCheck = Array.isArray(currentQuestion.answer) ? currentQuestion.answer : [currentQuestion.answer];
-        const isCorrectAnswer = answersToCheck.some(answer => answer.toLowerCase() === transcript);
+        // Use fuzzyMatch to allow for some flexibility in matching the spoken answer.
+        const isCorrectAnswer = fuzzyMatch(transcript, answersToCheck);
 
         if (isCorrectAnswer) {
             setCorrectAnswersCount(prevCount => prevCount + 1); // Correctly update the count.
             moveToNextQuestion(); // Move to the next question, which also resets the speech answer.
         }
-    }, [currentQuestion, moveToNextQuestion]);
+     }, [currentQuestion, moveToNextQuestion, fuzzyMatch]);
 
     const toggleListening = () => {
         if (!isListening) {
@@ -321,14 +357,22 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
                     <button type="button" onClick={() => handleIKnowThis(questions[currentQuestionIndex].id, course.slug)} className="px-4 py-2 ml-4 font-bold text-white bg-orange-500 rounded hover:bg-orange-700 focus:outline-none focus:shadow-outline">
                         I Know This
                     </button>
-                    <button type="button" onClick={toggleListening} className="px-4 py-2 ml-4 font-bold text-white bg-purple-500 rounded hover:bg-purple-700 focus:outline-none focus:shadow-outline">
-                        {isListening ? 'Stop Listening' : 'Start Listening'}
+                    <button type="button" onClick={toggleListening} className={`px-4 py-2 ml-4 font-bold text-white rounded focus:outline-none focus:shadow-outline ${isListening ? 'bg-red-500 hover:bg-red-700' : 'bg-purple-500 hover:bg-purple-700'}`}>
+                        {isListening ? 'Listening... (Click to Stop)' : 'Start Listening'}
                     </button>
-                    <div>
-                        <h4>Spaced Repetition Metrics (Debugging):</h4>
-                        <pre>{JSON.stringify(spacedRepetitionMetrics, null, 2)}</pre>
+                        <div className="p-4 my-4 bg-white rounded-lg shadow-md">
+                            <h4 className="mb-2 text-lg font-semibold">Spaced Repetition Metrics (Debugging):</h4>
+                            <pre className="p-3 overflow-x-auto text-sm bg-gray-100 rounded">{JSON.stringify(spacedRepetitionMetrics, null, 2)}</pre>
+                        </div>
+                    <div className="p-4 my-4 bg-white rounded-lg shadow-md">
+                        <div className="font-bold text-primary">Timer: <span className="text-secondary">{formatTime(milliseconds)}</span></div>
                     </div>
                 </form>
+                {isListening && (
+                    <div className="p-2 text-center text-green-700 bg-green-100 rounded-lg">
+                        Listening for your answer...
+                    </div>
+                )}
                 {speechAnswer && <p>Speech Answer: {speechAnswer} (Correct Count: {correctSpeechCount}/5)</p>}
             </div>
         </AuthenticatedLayout>

@@ -29,8 +29,12 @@ Work on UI
 
 git add .
 git commit -m "fixed issues with answer showing and voice recognition"
-git push origin master
+git push origin main
 
 ======================
-
-
+cd /var/www/laravel
+git checkout main
+git add .
+git commit -m "todays changes"
+git pull
+npm run build
