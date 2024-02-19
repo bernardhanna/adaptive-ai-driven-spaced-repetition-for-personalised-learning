@@ -28,13 +28,22 @@ Work on UI
 ===================
 
 git add .
-git commit -m "fixed issues with answer showing and voice recognition"
+git commit -m "added timer and some additonal UI"
 git push origin main
 
 ======================
+root@SMLEARNonubuntu2204-s-1vcpu-1gb-ams3-01:/var/www/laravel#
+sudo chown -R username:username /var/www/laravel/public/build
+
 cd /var/www/laravel
 git checkout main
 git add .
 git commit -m "todays changes"
 git pull
-npm run build
+sudo npm run build
+
+
+git config --global user.email "bernard@matrixinternet.ie"
+git config --global user.name "bernardhanna"
+
+git pull --no-rebase

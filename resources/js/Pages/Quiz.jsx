@@ -100,11 +100,17 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
                 courseId: course.id,
                 isCorrect: isCorrect,
                 timeTaken: milliseconds,
+                // Include spaced repetition parameters if they're being tracked
+                // Ensure your backend handles these appropriately
+                currentInterval: currentQuestion.interval,
+                currentRepetitions: currentQuestion.repetitions,
+                currentEasinessFactor: currentQuestion.easinessFactor,
             })
             .then(response => {
                 setCorrectAnswersCount(prev => prev + 1);
+                // Assuming response.data.data now includes updated SRS metrics
                 setSpacedRepetitionMetrics(response.data.data);
-                moveToNextQuestion(); // Moved inside then() to ensure order of operations
+                moveToNextQuestion(); // Ensure this happens after updating state based on the response
             })
             .catch(error => {
                 console.error('Error submitting answer:', error);
@@ -113,7 +119,8 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
         } else {
             setError("Incorrect answer. Try again.");
         }
-    }, [currentQuestionIndex, questions, userAnswer, user.id, course.id, moveToNextQuestion]);
+    }, [currentQuestionIndex, questions, userAnswer, user.id, course.id, moveToNextQuestion, milliseconds]);
+
 
 
     useEffect(() => {
