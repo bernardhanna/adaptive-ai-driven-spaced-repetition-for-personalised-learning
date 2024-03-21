@@ -8,6 +8,7 @@ use App\Http\Controllers\CourseController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\KnownController;
 use App\Http\Controllers\StuffIKnowController;
+use App\Http\Controllers\UserMetricsController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -59,5 +60,8 @@ Route::delete('/unmark-question-known/{questionId}', [KnownController::class, 'u
 
 
 Route::post('/submit-answer', [QuizController::class, 'submitAnswer'])->middleware(['auth', 'verified'])->name('submit-answer');
+
+Route::get('/user-metrics', [UserMetricsController::class, 'index'])->middleware('auth:api');
+
 
 require __DIR__.'/auth.php';

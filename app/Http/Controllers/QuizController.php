@@ -70,7 +70,7 @@ class QuizController extends Controller
         $userQuestion->repetitions = $metrics['repetitions'];
         $userQuestion->easiness_factor = $metrics['easinessFactor'];
         $userQuestion->next_review_date = $metrics['nextReviewDate'];
-
+        $userQuestion->fill($metrics);
         $userQuestion->save();
 
         return response()->json([

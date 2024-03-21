@@ -28,7 +28,7 @@ Work on UI
 ===================
 
 git add .
-git commit -m "added timer and some additonal UI"
+git commit -m "Edits to Spaced Repetition Algorithm"
 git push origin main
 
 ======================
@@ -39,7 +39,7 @@ cd /var/www/laravel
 git checkout main
 git add .
 git commit -m "todays changes"
-git pull
+git pull --no-rebase
 sudo npm run build
 
 

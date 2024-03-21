@@ -3,13 +3,18 @@ import { Link } from '@inertiajs/inertia-react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import axios from 'axios';
 import Fuse from 'fuse.js';
-
+import '@tensorflow/tfjs-core';
+import '@tensorflow/tfjs-backend-webgl';
+import * as faceapi from '@vladmandic/face-api/dist/face-api.esm.js';
+await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
 const Quiz = ({ questions: initialQuestions, user, course }) => {
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [questions, setQuestions] = useState(initialQuestions);
     const [userAnswer, setUserAnswer] = useState('');
     const [error, setError] = useState('');
     const [quizCompleted, setQuizCompleted] = useState(initialQuestions.length === 0);
+    const videoRef = useRef();
+    const canvasRef = useRef();
     const [showAnswer, setShowAnswer] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [speechAnswer, setSpeechAnswer] = useState('');
@@ -21,33 +26,7 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
     const [seconds, setSeconds] = useState(0);
     const [isActive, setIsActive] = useState(true);
     const [milliseconds, setMilliseconds] = useState(0);
-
-    useEffect(() => {
-        let interval = null;
-        if (isActive) {
-            interval = setInterval(() => {
-                setMilliseconds(prevMilliseconds => prevMilliseconds + 10);
-            }, 10);
-        } else {
-            clearInterval(interval);
-        }
-        return () => clearInterval(interval);
-    }, [isActive]);
-
-    const formatTime = (milliseconds) => {
-        let remainingMilliseconds = milliseconds;
-        const hours = Math.floor(remainingMilliseconds / 3600000);
-        remainingMilliseconds = remainingMilliseconds % 3600000;
-        const minutes = Math.floor(remainingMilliseconds / 60000);
-        remainingMilliseconds = remainingMilliseconds % 60000;
-        const seconds = Math.floor(remainingMilliseconds / 1000);
-        // const ms = remainingMilliseconds % 1000; // Calculation remains but not used in return
-
-           return `${String(hours).padStart(2, '0')}hr:${String(minutes).padStart(2, '0')}min:${String(seconds).padStart(2, '0')}sec`;
-
-    };
-
-
+    const [emotionDetectionCooldown, setEmotionDetectionCooldown] = useState(false);
 
     const moveToNextQuestion = useCallback(() => {
         setSpeechAnswer('');
@@ -63,6 +42,104 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
             setIsActive(false); // Stop the timer when the quiz is completed
         }
     }, [currentQuestionIndex, questions.length]);
+
+
+    useEffect(() => {
+        async function loadModelsAndSetupVideo() {
+            await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+            await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
+            await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
+            await faceapi.nets.faceExpressionNet.loadFromUri('/models');
+
+            navigator.mediaDevices.getUserMedia({ video: {} })
+                .then(stream => {
+                    const video = document.getElementById('webcam');
+                    video.srcObject = stream;
+                })
+                .catch(err => console.error("Error accessing the webcam:", err));
+        }
+        loadModelsAndSetupVideo();
+    }, []);
+
+    useEffect(() => {
+        const video = document.getElementById('webcam');
+        let cooldownTimeout = null;
+        let allowEmotionDetection = true;
+
+        const onPlay = () => {
+            const canvas = faceapi.createCanvasFromMedia(video);
+            document.body.appendChild(canvas);
+            const displaySize = { width: video.width, height: video.height };
+            faceapi.matchDimensions(canvas, displaySize);
+
+            const interval = setInterval(async () => {
+                if (allowEmotionDetection) {
+                    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                        .withFaceLandmarks()
+                        .withFaceExpressions();
+
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                    faceapi.draw.drawDetections(canvas, resizedDetections);
+                    faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+                    faceapi.draw.drawFaceExpressions(canvas, resizedDetections);
+
+                    const isHappy = detections.some(detection => detection.expressions.happy > 0.75);
+                    if (isHappy) {
+                        allowEmotionDetection = false;
+                        clearTimeout(cooldownTimeout);
+                        cooldownTimeout = setTimeout(() => {
+                            allowEmotionDetection = true;
+                        }, 3000);
+
+                        // Mark the answer as correct and move to the next question
+                        setCorrectAnswersCount(prevCount => prevCount + 1);
+
+                        if (currentQuestionIndex + 1 < questions.length) {
+                            setCurrentQuestionIndex(currentIndex => currentIndex + 1);
+                        } else {
+                            setQuizCompleted(true);
+                        }
+                    }
+                }
+            }, 100);
+
+            return () => {
+                clearInterval(interval);
+                clearTimeout(cooldownTimeout);
+                canvas.remove();
+            };
+        };
+
+        video.addEventListener('play', onPlay);
+        return () => video.removeEventListener('play', onPlay);
+    }, [currentQuestionIndex, questions.length, emotionDetectionCooldown]);
+
+    useEffect(() => {
+        let interval = null;
+        if (isActive) {
+            interval = setInterval(() => {
+                setMilliseconds(prevMilliseconds => prevMilliseconds + 10);
+            }, 10);
+        } else {
+            clearInterval(interval);
+        }
+        return () => clearInterval(interval);
+    }, [isActive]);
+
+
+    const formatTime = (milliseconds) => {
+        let remainingMilliseconds = milliseconds;
+        const hours = Math.floor(remainingMilliseconds / 3600000);
+        remainingMilliseconds = remainingMilliseconds % 3600000;
+        const minutes = Math.floor(remainingMilliseconds / 60000);
+        remainingMilliseconds = remainingMilliseconds % 60000;
+        const seconds = Math.floor(remainingMilliseconds / 1000);
+        // const ms = remainingMilliseconds % 1000; // Calculation remains but not used in return
+
+           return `${String(hours).padStart(2, '0')}hr:${String(minutes).padStart(2, '0')}min:${String(seconds).padStart(2, '0')}sec`;
+
+    };
 
     const handleIKnowThis = useCallback((questionId) => {
         axios.post('/mark-question-known', {
@@ -308,32 +385,52 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
             <div className="container mx-auto">
                 <h1 className="mb-4 text-xl font-bold">Quiz</h1>
                 <form onSubmit={handleAnswerSubmit}>
-                    <div className="mb-4">
-                        <label className="block mb-2 text-2xl font-bold text-gray-700">
-                            {currentQuestionIndex + 1}. {currentQuestion.question}
-                            {currentQuestion.image_url && (
-                                <img src={currentQuestion.image_url} alt="Question" style={{ maxWidth: '100%', marginTop: '10px' }} />
-                            )}
-                            {currentQuestion.video_url && (
-                                <video width="320" height="240" controls style={{ display: 'block', marginTop: '10px' }}>
-                                    <source src={currentQuestion.video_url} type="video/mp4" />
-                                    Your browser does not support the video tag.
-                                </video>
-                            )}
-                            {currentQuestion.video_id && (
-                                <iframe
-                                    width="560"
-                                    height="315"
-                                    src={`https://www.youtube.com/embed/${currentQuestion.video_id}`}
-                                    frameborder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowfullscreen
-                                    style={{ display: 'block', marginTop: '10px' }}
-                                ></iframe>
-                            )}
-                        </label>
-                        {renderQuestionInput(questions[currentQuestionIndex].type, questions[currentQuestionIndex])}
+                <div className="flex justify-center w-full my-8 video-container">
+                    <video id="webcam" width="720" height="560" autoPlay muted></video>
+                </div>
+                <div className="mb-4">
+                    {currentQuestion ? (
+                        <>
+                            <label className="block mb-2 text-2xl font-bold text-gray-700">
+                                {currentQuestionIndex + 1}. {currentQuestion.question}
+                                {currentQuestion.image_url && (
+                                    <img src={currentQuestion.image_url} alt="Question" style={{ maxWidth: '100%', marginTop: '10px' }} />
+                                )}
+                                {currentQuestion.video_url && (
+                                    <video width="320" height="240" controls style={{ display: 'block', marginTop: '10px' }}>
+                                        <source src={currentQuestion.video_url} type="video/mp4" />
+                                        Your browser does not support the video tag.
+                                    </video>
+                                )}
+                                {currentQuestion.video_id && (
+                                    <iframe
+                                        width="560"
+                                        height="315"
+                                        src={`https://www.youtube.com/embed/${currentQuestion.video_id}`}
+                                        frameborder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowfullscreen
+                                        style={{ display: 'block', marginTop: '10px' }}
+                                    ></iframe>
+                                )}
+                            </label>
+                            {renderQuestionInput(questions[currentQuestionIndex].type, questions[currentQuestionIndex])}
+                        </>
+                    ) : (
+                                   <div className="container mx-auto">
+                    <h1 className="text-xl font-bold">Quiz Completed!</h1>
+                    <p className="mt-2 text-lg">Total Correct Answers: {correctAnswersCount}</p>
+                    <div className="mt-4">
+                        <Link href="/courses" className="px-4 py-2 mr-4 font-bold text-white bg-blue-500 rounded hover:bg-blue-700 focus:outline-none focus:shadow-outline">
+                            Back to Courses
+                        </Link>
+                        <button onClick={resetQuiz} className="px-4 py-2 font-bold text-white bg-green-500 rounded hover:bg-green-700 focus:outline-none focus:shadow-outline">
+                            Try Again
+                        </button>
                     </div>
+                </div>
+                    )}
+                </div>
                     {error && <p className="text-xs italic text-red-500">{error}</p>}
                     {showAnswer && (
                         <p className="text-xl text-green-500">
