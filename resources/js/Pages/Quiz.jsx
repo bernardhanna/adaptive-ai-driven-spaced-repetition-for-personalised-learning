@@ -6,7 +6,7 @@ import Fuse from 'fuse.js';
 import '@tensorflow/tfjs-core';
 import '@tensorflow/tfjs-backend-webgl';
 import * as faceapi from '@vladmandic/face-api/dist/face-api.esm.js';
-await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+
 const Quiz = ({ questions: initialQuestions, user, course }) => {
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [questions, setQuestions] = useState(initialQuestions);
