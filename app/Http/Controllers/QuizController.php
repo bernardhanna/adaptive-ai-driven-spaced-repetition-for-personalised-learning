@@ -9,6 +9,7 @@ use App\Models\Question;
 use App\Models\KnownQuestion;
 use App\Models\UserQuestion;
 use App\Services\SpacedRepetitionService;
+use App\Models\QuizAttempt;
 use Carbon\Carbon;
 
 class QuizController extends Controller
@@ -25,6 +26,11 @@ class QuizController extends Controller
         $userId = auth()->id();
         $knownQuestionIds = KnownQuestion::where('user_id', $userId)->pluck('question_id');
 
+        $latestAttempt = QuizAttempt::where('user_id', $userId)
+            ->where('quiz_id', $course->id)
+            ->latest()
+            ->first();
+
         $questions = Question::where('course_id', $course->id)
             ->whereNotIn('id', $knownQuestionIds)
             ->get()
@@ -40,6 +46,7 @@ class QuizController extends Controller
             'course' => $course,
             'questions' => $questions,
             'user' => auth()->user(),
+            'latestAttempt' => $latestAttempt,
         ]);
     }
 
@@ -77,5 +84,40 @@ class QuizController extends Controller
             'message' => 'Answer submitted successfully',
             'data' => $metrics,
         ]);
+    }
+    public function saveAttempt(Request $request)
+    {
+        // Ensure you have validation for all incoming request data for security
+        $validated = $request->validate([
+            'quiz_id' => 'required|integer',
+            'question_id' => 'required|integer',
+            'confidence_score' => 'required|numeric',
+            'showed_answer' => 'required|boolean',
+            'skipped' => 'required|boolean',
+            'time_taken' => 'required|integer',
+            'completed' => 'required|boolean',
+            'toughness' => 'required|string',
+            'speed' => 'required|integer',
+            'facial_confidence' => 'nullable|float',
+            'voice_confidence' => 'nullable|float',
+        ]);
+
+        $attempt = QuizAttempt::create([
+            'user_id' => $request->user()->id,
+            'quiz_id' => $validated['quiz_id'],
+            'question_id' => $validated['question_id'],
+            'confidence_score' => $validated['confidence_score'],
+            'showed_answer' => $validated['showed_answer'],
+            'skipped' => $validated['skipped'],
+            'time_taken' => $validated['time_taken'],
+            'toughness' => $validated['toughness'],
+            'speed' => $validated['speed'],
+            'facial_confidence' => $validated['facial_confidence'],
+            'voice_confidence' => $validated['voice_confidence'],
+            'completed' => $validated['completed'],
+
+        ]);
+
+        return response()->json($attempt);
     }
 }

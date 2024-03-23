@@ -26,7 +26,8 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
     const [seconds, setSeconds] = useState(0);
     const [isActive, setIsActive] = useState(true);
     const [milliseconds, setMilliseconds] = useState(0);
-    const [emotionDetectionCooldown, setEmotionDetectionCooldown] = useState(false);
+    const [confidenceScore, setConfidenceScore] = useState(0);
+    const [quizAttempts, setQuizAttempts] = useState([]);
 
     const moveToNextQuestion = useCallback(() => {
         setSpeechAnswer('');
@@ -44,7 +45,7 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
     }, [currentQuestionIndex, questions.length]);
 
 
-    useEffect(() => {
+     useEffect(() => {
         async function loadModelsAndSetupVideo() {
             await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
             await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
@@ -59,61 +60,73 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
                 .catch(err => console.error("Error accessing the webcam:", err));
         }
         loadModelsAndSetupVideo();
-    }, []);
+     }, []);
+
 
     useEffect(() => {
         const video = document.getElementById('webcam');
+        if (!video) return;
+
         let cooldownTimeout = null;
         let allowEmotionDetection = true;
 
         const onPlay = () => {
+            const canvasContainer = document.getElementById('canvasContainer');
+            if (!canvasContainer) {
+                console.error("Canvas container not found");
+                return;
+            }
+
             const canvas = faceapi.createCanvasFromMedia(video);
-            document.body.appendChild(canvas);
+            canvasContainer.appendChild(canvas);
             const displaySize = { width: video.width, height: video.height };
             faceapi.matchDimensions(canvas, displaySize);
 
             const interval = setInterval(async () => {
-                if (allowEmotionDetection) {
-                    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-                        .withFaceLandmarks()
-                        .withFaceExpressions();
+                if (!allowEmotionDetection) return;
 
-                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-                    faceapi.draw.drawDetections(canvas, resizedDetections);
-                    faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
-                    faceapi.draw.drawFaceExpressions(canvas, resizedDetections);
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceExpressions();
 
-                    const isHappy = detections.some(detection => detection.expressions.happy > 0.75);
-                    if (isHappy) {
-                        allowEmotionDetection = false;
-                        clearTimeout(cooldownTimeout);
-                        cooldownTimeout = setTimeout(() => {
-                            allowEmotionDetection = true;
-                        }, 3000);
+                if (detections.length > 0) {
+                    const emotions = detections[0].expressions;
+                    const happinessConfidenceScore = emotions.happy;
+                    setConfidenceScore(happinessConfidenceScore); // Make sure you have defined this state variable with useState
+                }
 
-                        // Mark the answer as correct and move to the next question
-                        setCorrectAnswersCount(prevCount => prevCount + 1);
+                const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                faceapi.draw.drawDetections(canvas, resizedDetections);
+                faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+                faceapi.draw.drawFaceExpressions(canvas, resizedDetections);
 
-                        if (currentQuestionIndex + 1 < questions.length) {
-                            setCurrentQuestionIndex(currentIndex => currentIndex + 1);
-                        } else {
-                            setQuizCompleted(true);
-                        }
-                    }
+                const isHappy = detections.some(detection => detection.expressions.happy > 0.75);
+                if (isHappy) {
+                    allowEmotionDetection = false;
+                    clearTimeout(cooldownTimeout);
+                    cooldownTimeout = setTimeout(() => {
+                        allowEmotionDetection = true;
+                    }, 3000);
+
+                    // Add your logic here to handle when a user is happy
+                    // For example, adjusting the spaced repetition algorithm based on the confidence score
                 }
             }, 100);
 
             return () => {
                 clearInterval(interval);
                 clearTimeout(cooldownTimeout);
-                canvas.remove();
+                if (canvasContainer.contains(canvas)) {
+                    canvasContainer.removeChild(canvas);
+                }
             };
         };
 
         video.addEventListener('play', onPlay);
         return () => video.removeEventListener('play', onPlay);
-    }, [currentQuestionIndex, questions.length, emotionDetectionCooldown]);
+    }, [currentQuestionIndex, questions.length, setCorrectAnswersCount, setQuizCompleted, setConfidenceScore]); // Ensure all dependencies are correctly listed
+
 
     useEffect(() => {
         let interval = null;
@@ -385,8 +398,9 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
             <div className="container mx-auto">
                 <h1 className="mb-4 text-xl font-bold">Quiz</h1>
                 <form onSubmit={handleAnswerSubmit}>
-                <div className="flex justify-center w-full my-8 video-container">
-                    <video id="webcam" width="720" height="560" autoPlay muted></video>
+                <div id="canvasContainer" className="relative w-full h-auto">
+                    {/* The canvas will be appended here by the useEffect hook */}
+                    <video className="mx-auto" id="webcam" width="720" height="560" autoPlay muted></video>
                 </div>
                 <div className="mb-4">
                     {currentQuestion ? (
@@ -464,6 +478,17 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
                     <button type="button" onClick={toggleListening} className={`px-4 py-2 ml-4 font-bold text-white rounded focus:outline-none focus:shadow-outline ${isListening ? 'bg-red-500 hover:bg-red-700' : 'bg-purple-500 hover:bg-purple-700'}`}>
                         {isListening ? 'Listening... (Click to Stop)' : 'Start Listening'}
                     </button>
+                    <h1 className="mb-4 text-xl font-bold">Quiz Attempts</h1>
+                                    {quizAttempts.map((attempt, index) => (
+                                        <div key={index}>
+                                            <p>Confidence Score: {attempt.confidence_score}</p>
+                                            <p>Time Taken: {attempt.time_taken} seconds</p>
+                                            {/* Display other relevant information from the attempt */}
+                                        </div>
+                                    ))}
+                     <div className="confidence-score">
+                        <div>Confidence Score: {confidenceScore.toFixed(2)}</div> {/* Displaying the confidence score */}
+                    </div>
                         <div className="p-4 my-4 bg-white rounded-lg shadow-md">
                             <h4 className="mb-2 text-lg font-semibold">Spaced Repetition Metrics (Debugging):</h4>
                             <pre className="p-3 overflow-x-auto text-sm bg-gray-100 rounded">{JSON.stringify(spacedRepetitionMetrics, null, 2)}</pre>

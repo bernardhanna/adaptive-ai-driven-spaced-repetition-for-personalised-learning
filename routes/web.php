@@ -63,5 +63,6 @@ Route::post('/submit-answer', [QuizController::class, 'submitAnswer'])->middlewa
 
 Route::get('/user-metrics', [UserMetricsController::class, 'index'])->middleware('auth:api');
 
+Route::post('/quiz/{quiz}/attempt', [QuizController::class, 'saveAttempt'])->name('quiz.attempt.save');
 
 require __DIR__.'/auth.php';
