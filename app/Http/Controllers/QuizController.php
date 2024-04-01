@@ -37,7 +37,7 @@ class QuizController extends Controller
             ->map(function ($question) use ($userId) {
                 $spacedRepetitionData = UserQuestion::where('question_id', $question->id)
                     ->where('user_id', $userId)
-                    ->first(['next_review_date', 'interval', 'easiness_factor', 'repetitions']);
+                    ->first(['next_review_date', 'interval', 'easiness_factor', 'repetitions', 'confidence_score']);
                 $question->spacedRepetitionData = $spacedRepetitionData;
                 return $question;
             });
@@ -57,6 +57,7 @@ class QuizController extends Controller
             'questionId' => 'required|integer',
             'courseId' => 'required|integer',
             'isCorrect' => 'required|boolean',
+            'confidence_score' => 'required|numeric|min:0|max:1', // Validation for confidence_score
         ]);
 
         $userQuestion = UserQuestion::firstOrNew([
@@ -77,6 +78,7 @@ class QuizController extends Controller
         $userQuestion->repetitions = $metrics['repetitions'];
         $userQuestion->easiness_factor = $metrics['easinessFactor'];
         $userQuestion->next_review_date = $metrics['nextReviewDate'];
+        $userQuestion->confidence_score = $validated['confidence_score']; // Save confidence_score to the database
         $userQuestion->fill($metrics);
         $userQuestion->save();
 
