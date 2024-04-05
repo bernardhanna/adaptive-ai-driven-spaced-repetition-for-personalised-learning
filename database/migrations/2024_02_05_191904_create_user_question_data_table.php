@@ -19,6 +19,8 @@ class CreateUserQuestionDataTable extends Migration
             $table->decimal('easiness_factor', 4, 2)->default(2.5);
             $table->integer('interval')->default(0);
             $table->date('next_review_date')->nullable();
+            $table->float('confidence_score')->nullable();
+            $table->float('time_taken')->nullable();
             $table->timestamps();
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('question_id')->references('id')->on('questions')->onDelete('cascade');

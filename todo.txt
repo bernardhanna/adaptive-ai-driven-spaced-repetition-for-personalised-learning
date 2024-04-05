@@ -1,15 +1,7 @@
 php artisan migrate:refresh
 php artisan db:seed
-php artisan db:seed --class=DataVisualizationSeeder
-php artisan db:seed --class=DataMiningSeeder
 php artisan db:seed --class=JavaScriptSeeder
-php artisan db:seed --class=JavaSeeder
-php artisan db:seed --class=MachineLearningSeeder
-php artisan db:seed --class=OopSeeder
-php artisan db:seed --class=PhpSeeder
 php artisan db:seed --class=PythonSeeder
-php artisan db:seed --class=ReactSeeder
-
 
 valet start
 npm run dev

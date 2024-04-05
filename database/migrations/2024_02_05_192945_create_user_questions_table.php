@@ -18,8 +18,10 @@ return new class extends Migration
             $table->unsignedBigInteger('course_id');
             $table->integer('interval');
             $table->integer('repetitions');
-            $table->float('easiness_factor'); // Changed to snake_case
-            $table->date('next_review_date'); // Changed to snake_case
+            $table->float('easiness_factor');
+            $table->date('next_review_date');
+            $table->float('confidence_score')->nullable();
+            $table->float('time_taken')->nullable();
             $table->timestamps();
 
             $table->foreign('user_id')->references('id')->on('users');

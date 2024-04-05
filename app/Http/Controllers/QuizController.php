@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\Course;
@@ -37,7 +38,7 @@ class QuizController extends Controller
             ->map(function ($question) use ($userId) {
                 $spacedRepetitionData = UserQuestion::where('question_id', $question->id)
                     ->where('user_id', $userId)
-                    ->first(['next_review_date', 'interval', 'easiness_factor', 'repetitions']);
+            ->first(['next_review_date', 'interval', 'easiness_factor', 'repetitions', 'confidence_score', 'time_taken']);
                 $question->spacedRepetitionData = $spacedRepetitionData;
                 return $question;
             });
@@ -52,11 +53,16 @@ class QuizController extends Controller
 
     public function submitAnswer(Request $request)
     {
+
+        Log::info($request->all());
+
         $validated = $request->validate([
             'userId' => 'required|integer',
             'questionId' => 'required|integer',
             'courseId' => 'required|integer',
             'isCorrect' => 'required|boolean',
+            'confidenceScore' => 'required|numeric',
+            'timeTaken' => 'required|integer',
         ]);
 
         $userQuestion = UserQuestion::firstOrNew([
@@ -65,11 +71,18 @@ class QuizController extends Controller
             'course_id' => $validated['courseId'],
         ]);
 
+        // Now explicitly set additional attributes
+        $userQuestion->confidence_score = $validated['confidenceScore'];
+        $userQuestion->time_taken = $validated['timeTaken'];
+
+
         $metrics = $this->spacedRepetitionService->calculateNextReview(
             $validated['isCorrect'],
             $userQuestion->interval ?? 0,
             $userQuestion->repetitions ?? 0,
-            $userQuestion->easiness_factor ?? 2.5
+            $userQuestion->easiness_factor ?? 2.5,
+            $userQuestion->confidence_score,
+            $userQuestion->time_taken
         );
 
         // Update or fill the user question attributes based on the metrics calculated

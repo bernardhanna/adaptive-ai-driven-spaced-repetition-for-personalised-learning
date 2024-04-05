@@ -30,6 +30,11 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
     const [quizAttempts, setQuizAttempts] = useState([]);
 
     const moveToNextQuestion = useCallback(() => {
+        const newAttempt = {
+        confidenceScore: confidenceScore.toFixed(2),
+        timeTaken: formatTime(milliseconds),
+        };
+        setQuizAttempts([...quizAttempts, newAttempt]);
         setSpeechAnswer('');
         setShowAnswer(false);
         setError('');
@@ -42,7 +47,7 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
             setQuizCompleted(true);
             setIsActive(false); // Stop the timer when the quiz is completed
         }
-    }, [currentQuestionIndex, questions.length]);
+    }, [currentQuestionIndex, questions.length, confidenceScore, milliseconds, quizAttempts]);
 
 
      useEffect(() => {
@@ -190,8 +195,7 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
                 courseId: course.id,
                 isCorrect: isCorrect,
                 timeTaken: milliseconds,
-                // Include spaced repetition parameters if they're being tracked
-                // Ensure your backend handles these appropriately
+                confidenceScore: confidenceScore.toFixed(2),
                 currentInterval: currentQuestion.interval,
                 currentRepetitions: currentQuestion.repetitions,
                 currentEasinessFactor: currentQuestion.easinessFactor,
@@ -203,13 +207,14 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
                 moveToNextQuestion(); // Ensure this happens after updating state based on the response
             })
             .catch(error => {
-                console.error('Error submitting answer:', error);
-                setError("Error submitting answer.");
+                console.error('Error submitting answer:', error.response.data);
+                // If you want to display this error on the UI, you could set it in your component's state
+                setError(error.response.data.message || "An error occurred");
             });
         } else {
             setError("Incorrect answer. Try again.");
         }
-    }, [currentQuestionIndex, questions, userAnswer, user.id, course.id, moveToNextQuestion, milliseconds]);
+    }, [currentQuestionIndex, questions, userAnswer, user.id, course.id, moveToNextQuestion, milliseconds, confidenceScore]);
 
 
 
@@ -378,8 +383,17 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
         return (
             <AuthenticatedLayout user={user}>
                 <div className="container mx-auto">
-                    <h1 className="text-xl font-bold">Quiz Completed!</h1>
-                    <p className="mt-2 text-lg">Total Correct Answers: {correctAnswersCount}</p>
+                <h1 className="text-xl font-bold">Quiz Completed!</h1>
+                <p className="mt-2 text-lg">Total Correct Answers: {correctAnswersCount}</p>
+                <h3 className="mt-4 text-lg font-semibold">Review of Attempts:</h3>
+                {quizAttempts.map((attempt, index) => (
+                    <div key={index} className="p-4 mb-4 bg-white rounded-lg shadow">
+                        <h4 className="font-semibold text-md">Question {index + 1}</h4>
+                        <p>Confidence Score: {attempt.confidenceScore}</p>
+                        <p>Time Taken: {attempt.timeTaken}</p>
+                        <p>Knowledge Score: {attempt.knowledgeScore}</p> {/* Display the knowledge score */}
+                    </div>
+                ))}
                     <div className="mt-4">
                         <Link href="/courses" className="px-4 py-2 mr-4 font-bold text-white bg-blue-500 rounded hover:bg-blue-700 focus:outline-none focus:shadow-outline">
                             Back to Courses
@@ -478,24 +492,23 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
                     <button type="button" onClick={toggleListening} className={`px-4 py-2 ml-4 font-bold text-white rounded focus:outline-none focus:shadow-outline ${isListening ? 'bg-red-500 hover:bg-red-700' : 'bg-purple-500 hover:bg-purple-700'}`}>
                         {isListening ? 'Listening... (Click to Stop)' : 'Start Listening'}
                     </button>
-                    <h1 className="mb-4 text-xl font-bold">Quiz Attempts</h1>
-                                    {quizAttempts.map((attempt, index) => (
-                                        <div key={index}>
-                                            <p>Confidence Score: {attempt.confidence_score}</p>
-                                            <p>Time Taken: {attempt.time_taken} seconds</p>
-                                            {/* Display other relevant information from the attempt */}
-                                        </div>
-                                    ))}
-                     <div className="confidence-score">
-                        <div>Confidence Score: {confidenceScore.toFixed(2)}</div> {/* Displaying the confidence score */}
+                 <div className="p-4 my-4 bg-white rounded-lg shadow-md">
+                        <div className="font-bold text-primary">Timer: <span className="text-secondary">{formatTime(milliseconds)}</span></div>
                     </div>
+                   <div className="confidence-score">
+                        <div className="py-8 font-bold">Current Question Confidence Score: {confidenceScore.toFixed(2)}</div> {/* Displaying the confidence score */}
+                    </div>
+                    {quizAttempts.length > 0 && (
+                        <div className="py-4">
+                            <h4 className="py-4">Previous Question Details:</h4>
+                            <p className="py-4">Previous Question Confidence Score: {quizAttempts[quizAttempts.length - 1].confidenceScore}</p>
+                            <p className="py-4">Previous Question Time Taken: {quizAttempts[quizAttempts.length - 1].timeTaken}</p>
+                        </div>
+                    )}
                         <div className="p-4 my-4 bg-white rounded-lg shadow-md">
                             <h4 className="mb-2 text-lg font-semibold">Spaced Repetition Metrics (Debugging):</h4>
                             <pre className="p-3 overflow-x-auto text-sm bg-gray-100 rounded">{JSON.stringify(spacedRepetitionMetrics, null, 2)}</pre>
                         </div>
-                    <div className="p-4 my-4 bg-white rounded-lg shadow-md">
-                        <div className="font-bold text-primary">Timer: <span className="text-secondary">{formatTime(milliseconds)}</span></div>
-                    </div>
                 </form>
                 {isListening && (
                     <div className="p-2 text-center text-green-700 bg-green-100 rounded-lg">
