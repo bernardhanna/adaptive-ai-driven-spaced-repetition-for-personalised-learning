@@ -175,16 +175,23 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
 
     const handleAnswerSubmit = useCallback((e) => {
         e.preventDefault();
+        const normalizedUserAnswer = userAnswer.replace(/\s/g, '').toLowerCase();
         const currentQuestion = questions[currentQuestionIndex];
         let isCorrect = false;
 
         try {
+            // Assume correct answers could be a JSON string of an array or a single string
             const correctAnswers = JSON.parse(currentQuestion.answer);
-            isCorrect = Array.isArray(correctAnswers)
-                ? correctAnswers.some(answer => answer.toLowerCase() === userAnswer.toLowerCase())
-                : currentQuestion.answer.toLowerCase() === userAnswer.toLowerCase();
+            if (Array.isArray(correctAnswers)) {
+                isCorrect = correctAnswers.some(answer =>
+                    answer.toLowerCase().replace(/\s/g, '') === normalizedUserAnswer
+                );
+            } else {
+                isCorrect = correctAnswers.toLowerCase().replace(/\s/g, '') === normalizedUserAnswer;
+            }
         } catch (error) {
-            isCorrect = currentQuestion.answer.toLowerCase() === userAnswer.toLowerCase();
+            // Fallback for non-JSON formatted answers
+            isCorrect = currentQuestion.answer.toLowerCase().replace(/\s/g, '') === normalizedUserAnswer;
         }
 
         if (isCorrect) {
@@ -391,7 +398,6 @@ const Quiz = ({ questions: initialQuestions, user, course }) => {
                         <h4 className="font-semibold text-md">Question {index + 1}</h4>
                         <p>Confidence Score: {attempt.confidenceScore}</p>
                         <p>Time Taken: {attempt.timeTaken}</p>
-                        <p>Knowledge Score: {attempt.knowledgeScore}</p> {/* Display the knowledge score */}
                     </div>
                 ))}
                     <div className="mt-4">
